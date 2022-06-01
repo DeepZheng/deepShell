@@ -56,8 +56,6 @@ char *lsh_read_line() {
 char *lsh_get_line(char *name, char *path) {
     char *buf = malloc(sizeof(char) * LSH_LINE_BUFSIZE);
     memset(buf, 0, sizeof(char) * LSH_LINE_BUFSIZE);
-    //char *temp[100] = "ls -a -l -n -l"; //简单的历史命令
-    //char buf[LSH_LINE_BUFSIZE] = "\0";
     struct termios old_opt, opt;
     char ch;
     int maxposition = history_count;
@@ -71,7 +69,7 @@ char *lsh_get_line(char *name, char *path) {
     opt.c_lflag &= ~ECHO;
     opt.c_lflag &= ~ICANON;
     
-    tcsetattr(0, TCSANOW, &opt); //设置
+    tcsetattr(0, TCSANOW, &opt); // new setup
 
     
     printf("[%s@%s] >> ",name, path);
@@ -82,7 +80,7 @@ char *lsh_get_line(char *name, char *path) {
             getchar();
             if( (ch = getchar()) == 65 || ch == 66 ) {
                 if(ch == 65) {
-                    //上键
+                    // key up
                     int i = strlen(buf);
                     //memset(buf, 0, 100);
                     if(position > 0) {
@@ -93,14 +91,14 @@ char *lsh_get_line(char *name, char *path) {
                     printf("\r[%s@%s] >> ",name, path);
                     for(int j = 0; j < i; ++j)
                     {
-                        printf(" ");//覆盖掉自己
+                        printf(" ");
 
                     }
                     printf("\r[%s@%s] >> %s",name, path, buf);
                     fflush(stdout);
                 }
                 else if(ch == 66) {   
-                    //下键
+                    // key down
                     int i = strlen(buf);
                     if(position < maxposition){
                         strcpy(buf, history_command[++position]);
@@ -110,7 +108,7 @@ char *lsh_get_line(char *name, char *path) {
                     printf("\r[%s@%s] >> ",name, path);
                     for(int j = 0; j < i; ++j)
                     {
-                        printf(" ");//覆盖掉自己
+                        printf(" ");
 
                     }
                     printf("\r[%s@%s] >> %s",name, path, buf);
@@ -119,7 +117,7 @@ char *lsh_get_line(char *name, char *path) {
             }
         }
         else if(ch == 127) {
-            //删除键的设置 
+            // delete
             int i = strlen(buf);
             if(i != 0)
             {
@@ -137,7 +135,7 @@ char *lsh_get_line(char *name, char *path) {
                 fflush(stdout);
             }
         } else if(ch == 10) {
-            //enter键获取命令
+            // key enter
             break;
         } else {
             int i = strlen(buf);
@@ -146,7 +144,7 @@ char *lsh_get_line(char *name, char *path) {
             i++;
         }
     }
-    tcsetattr(0, TCSANOW, &old_opt); //恢复
+    tcsetattr(0, TCSANOW, &old_opt); //recover
     printf("\n");
     memcpy(history_command[maxposition], buf, strlen(buf));   
     return buf;
@@ -215,11 +213,9 @@ void lsh_loop(){
     do {
         getcwd(path,sizeof(path));
         pwd = getpwuid(getuid());
-        //printf("[%s@%s] >> ",pwd->pw_name, path);
 
         line = lsh_get_line(pwd->pw_name, path);
-        history_count++;
-        // up/down to history
+        history_count++; // up/down to history    
 
         args = lsh_split_line(line);
         status = lsh_execute(args);
@@ -233,8 +229,6 @@ void lsh_loop(){
 
 
 int main(int argc, char **argv){
-    // Load config files, if any
-    //history_command = malloc(sizeof(char*) * 100);
 
     // Run command loop
     lsh_loop();
