@@ -36,6 +36,41 @@ int lsh_launch(char **args) {
     return 1;
 }
 
+int cmd_add_to_history(char *line){
+    /* initialize on first call */
+	if (history_command == NULL) {
+		history_command = calloc(sizeof(char *) * LSH_HIS_SIZE, 1);
+		if (history_command == NULL) {
+			fprintf(stderr, "error: allocation error\n");
+			return 0;
+		}
+	}
+
+    char *tmp = strdup(line);
+    if(line == NULL) {
+        fprintf(stderr, "error: allocation error\n");
+        return 0;
+    }
+
+    /*
+
+    */
+    if(history_count == LSH_HIS_SIZE-1) {
+        free(history_command[0]);
+        // safer impletation than memcpy
+        memmove(history_command, history_command+1, sizeof(char*) * (LSH_HIS_SIZE) - 1);
+
+        if(history_command == NULL) {
+            fprintf(stderr, "error: allocation error\n");
+			return 0;
+        }
+
+        history_count--;
+    }
+
+    history_command[history_count++] = tmp;
+    return 1;
+}
 
 char *lsh_read_line() {
     char *line = NULL;
@@ -56,6 +91,9 @@ char *lsh_read_line() {
 char *lsh_get_line(char *name, char *path) {
     char *buf = malloc(sizeof(char) * LSH_LINE_BUFSIZE);
     memset(buf, 0, sizeof(char) * LSH_LINE_BUFSIZE);
+    char *line = malloc(sizeof(char) * LSH_LINE_BUFSIZE);
+    memset(line, 0, sizeof(char) * LSH_LINE_BUFSIZE);
+
     struct termios old_opt, opt;
     char ch;
     int maxposition = history_count;
@@ -83,11 +121,16 @@ char *lsh_get_line(char *name, char *path) {
                     // key up
                     int i = strlen(buf);
                     //memset(buf, 0, 100);
+
+                    // save current command
+                    if(position == maxposition) {
+                        strcpy(line, buf);
+                    } 
+                    // recover history command
                     if(position > 0) {
                         strcpy(buf, history_command[--position]);
-                    } else {
-                        strcpy(buf, "");
                     }
+
                     printf("\r[%s@%s] >> ",name, path);
                     for(int j = 0; j < i; ++j)
                     {
@@ -100,10 +143,11 @@ char *lsh_get_line(char *name, char *path) {
                 else if(ch == 66) {   
                     // key down
                     int i = strlen(buf);
-                    if(position < maxposition){
+                    if(position < maxposition-1){
                         strcpy(buf, history_command[++position]);
-                    } else {
-                        strcpy(buf, "");
+                    } else if(position == maxposition-1) {
+                        strcpy(buf, line);
+                        position++;
                     }
                     printf("\r[%s@%s] >> ",name, path);
                     for(int j = 0; j < i; ++j)
@@ -146,7 +190,8 @@ char *lsh_get_line(char *name, char *path) {
     }
     tcsetattr(0, TCSANOW, &old_opt); //recover
     printf("\n");
-    memcpy(history_command[maxposition], buf, strlen(buf));   
+  
+    cmd_add_to_history(buf);
     return buf;
 }
 
@@ -159,7 +204,7 @@ char ** lsh_split_line(char* line){
     char *token;
 
     if(!tokens){
-        fprintf(stderr, "lsh : allocation error\n");
+        fprintf(stderr, "error : allocation error\n");
         exit(EXIT_FAILURE);
     }
 
@@ -172,7 +217,7 @@ char ** lsh_split_line(char* line){
             tokens = realloc(tokens, sizeof(char*) * bufsize);
 
             if(!tokens) {
-                fprintf(stderr, "lsh : reallocation error\n");
+                fprintf(stderr, "error : reallocation error\n");
                 exit(EXIT_FAILURE);
             }
         }
@@ -215,8 +260,6 @@ void lsh_loop(){
         pwd = getpwuid(getuid());
 
         line = lsh_get_line(pwd->pw_name, path);
-        history_count++; // up/down to history    
-
         args = lsh_split_line(line);
         status = lsh_execute(args);
 
