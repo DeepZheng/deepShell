@@ -7,34 +7,9 @@
 #include <unistd.h>
 #include <termios.h>
 #include <fcntl.h>
-#include "function.h"
-
-
-
-int lsh_launch(char **args) {
-    pid_t pid, wpid;
-    int status;
-
-    pid = fork();
-    if( pid == 0) {
-        // child process
-        //printf("launch : %s\n", args[0]);
-        if(execvp(args[0], args) == -1) {
-            perror("lsh");
-        }
-        exit(EXIT_FAILURE);
-    } else if(pid < 0) {
-        // Error forking
-        perror("lsh");
-    } else {
-        // Parent process
-        do {
-            wpid = waitpid(pid, &status, WUNTRACED);
-        } while (!WIFEXITED(status) && !WIFSIGNALED(status));
-    }
-
-    return 1;
-}
+#include "builtin.h"
+#include "profile.h"
+#include "handle.h"
 
 int cmd_add_to_history(char *line){
     /* initialize on first call */
@@ -198,7 +173,7 @@ char *lsh_get_line(char *name, char *path) {
 
 
 char ** lsh_split_line(char* line){
-    int position = 0;
+    arg_length = 0;
     int bufsize = LSH_TOK_BUFSIZE;
     char **tokens = malloc(sizeof(char*) * bufsize);
     char *token;
@@ -210,9 +185,9 @@ char ** lsh_split_line(char* line){
 
     token = strtok(line, LSH_TOK_DELIM);
     while (token != NULL){
-        tokens[position++] = token;
+        tokens[arg_length++] = token;
     
-        if(position >= bufsize){
+        if(arg_length >= bufsize){
             bufsize += LSH_TOK_BUFSIZE;
             tokens = realloc(tokens, sizeof(char*) * bufsize);
 
@@ -224,26 +199,67 @@ char ** lsh_split_line(char* line){
         //printf("split : %s\n", token);
         token = strtok(NULL, LSH_TOK_DELIM);
     }
-    tokens[position] = NULL;
+    tokens[arg_length] = NULL;
     
     return tokens;
 }
 
 
+
+/*
+1. > : redirect output
+2. < : redirect input
+3. | : piping
+3. normarl command
+*/
 int lsh_execute(char ** args) {
-    
+    int fd = -1;
+    int start = 0;
+    int success = 0;
     if(args[0] == NULL) {
         // An empty command
         return 1;
     }
-
+    // check for builtin function
     for(int i = 0;i < lsh_num_builtins();++i) {
         if(strcmp(args[0], builtin_str[i]) == 0) {
             return (*builtin_func[i])(args);
         }
     }
-    //printf("execute \n");
-    return lsh_launch(args);
+    
+    for(int i = 0;i < arg_length;i++) {
+
+       if(strcmp(args[i], ">") == 0) {
+           args[i] = NULL;
+           fd = open(args[i+1], O_RDWR|O_CREAT, 0664);
+           if(fd < 0) {
+               perror("> open file error");
+           }
+
+           success = lsh_handle(args, -1, fd, start, REDIRECT_OUTPUT);
+           fd = 0;
+           i++;
+       } else if (strcmp(args[i], "<") == 0) {
+           args[i] = NULL;
+           fd = open(args[i+1], O_RDONLY);
+           if(fd < 0) {
+               perror("< open file error");   
+           }
+
+           success = lsh_handle(args, fd, -1, start, REDIRECT_INPUT);
+           fd = 0;
+           i++;
+       } else if (strcmp(args[i], "|") == 0) {
+           args[i] = NULL;
+           fd = lsh_handle(args, fd, -1, start, PIPE);
+           start = i + 1;
+       } 
+       else if (i == arg_length-1){
+           success = lsh_handle(args, fd, -1, start, NORMAL);
+       }
+   }
+   return success;
+
 }
 
 void lsh_loop(){

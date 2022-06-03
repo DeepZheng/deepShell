@@ -1,18 +1,15 @@
+#ifndef BUILTIN_H
+#define BUILTIN_H
+
 #include <stdio.h>
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
-
-#define LSH_LINE_BUFSIZE 200
-#define LSH_TOK_BUFSIZE 64
-#define LSH_HIS_SIZE 100
-#define LSH_TOK_DELIM  " \t\r\n\a"
+#include "profile.h"
 
 //char history_command[LSH_HIS_SIZE][LSH_LINE_BUFSIZE];
-char **history_command;
- int history_count;
 
 
 char* builtin_str[] = {
@@ -72,3 +69,5 @@ int (*builtin_func[]) (char **) = {
     &lsh_history,
     &lsh_exit,
 };
+
+#endif
